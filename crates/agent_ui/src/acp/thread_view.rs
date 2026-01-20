@@ -99,7 +99,6 @@ enum ThreadError {
     Other {
         message: SharedString,
         acp_error_code: Option<SharedString>,
-        acp_error_message: Option<SharedString>,
     },
 }
 
@@ -120,16 +119,10 @@ impl ThreadError {
         } else {
             let message: SharedString = format!("{:#}", error).into();
 
-            // Extract ACP error details if available
-            let (acp_error_code, acp_error_message) =
-                if let Some(acp_error) = error.downcast_ref::<acp::Error>() {
-                    (
-                        Some(SharedString::from(acp_error.code.to_string())),
-                        Some(SharedString::from(acp_error.message.clone())),
-                    )
-                } else {
-                    (None, None)
-                };
+            // Extract ACP error code if available
+            let acp_error_code = error
+                .downcast_ref::<acp::Error>()
+                .map(|acp_error| SharedString::from(acp_error.code.to_string()));
 
             // TODO: we should have Gemini return better errors here.
             if agent.clone().downcast::<agent_servers::Gemini>().is_some()
@@ -142,7 +135,6 @@ impl ThreadError {
                 Self::Other {
                     message,
                     acp_error_code,
-                    acp_error_message,
                 }
             }
         }
@@ -1858,17 +1850,13 @@ impl AcpThreadView {
     }
 
     fn emit_thread_error_telemetry(&self, error: &ThreadError, cx: &mut Context<Self>) {
-        let (error_kind, acp_error_code, acp_error_message) = match error {
-            ThreadError::PaymentRequired => ("payment_required", None, None),
-            ThreadError::ModelRequestLimitReached(_) => ("model_request_limit_reached", None, None),
-            ThreadError::ToolUseLimitReached => ("tool_use_limit_reached", None, None),
-            ThreadError::Refusal => ("refusal", None, None),
-            ThreadError::AuthenticationRequired(_) => ("authentication_required", None, None),
-            ThreadError::Other {
-                acp_error_code,
-                acp_error_message,
-                ..
-            } => ("other", acp_error_code.clone(), acp_error_message.clone()),
+        let (error_kind, acp_error_code) = match error {
+            ThreadError::PaymentRequired => ("payment_required", None),
+            ThreadError::ModelRequestLimitReached(_) => ("model_request_limit_reached", None),
+            ThreadError::ToolUseLimitReached => ("tool_use_limit_reached", None),
+            ThreadError::Refusal => ("refusal", None),
+            ThreadError::AuthenticationRequired(_) => ("authentication_required", None),
+            ThreadError::Other { acp_error_code, .. } => ("other", acp_error_code.clone()),
         };
 
         let (agent_telemetry_id, session_id) = self
@@ -1888,7 +1876,6 @@ impl AcpThreadView {
             session_id = session_id,
             kind = error_kind,
             acp_error_code = acp_error_code,
-            acp_error_message = acp_error_message,
         );
     }
 
