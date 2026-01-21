@@ -1,6 +1,6 @@
 name = "JSON"
 grammar = "json"
-path_suffixes = ["json", "flake.lock"]
+path_suffixes = ["json", "flake.lock", "composer.lock"]
 line_comments = ["// "]
 autoclose_before = ",]}"
 brackets = [
